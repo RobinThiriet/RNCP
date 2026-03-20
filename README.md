@@ -30,6 +30,7 @@ Les images officielles Guacamole et `guacd` sont alignées en `1.6.0`.
 - `saml/` : metadata SAML locale si nécessaire
 - `scripts/` : scripts d'exploitation
 - `windows/` : automatisation PowerShell pour un PoC AD / AD CS / AD FS
+- `docs/` : notes de cadrage et trace de l'objectif du PoC
 
 ## Démarrage
 
