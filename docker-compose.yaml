@@ -1,0 +1,142 @@
+services:
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    container_name: guac-reverse-proxy
+    depends_on:
+      guacamole:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./proxy/conf.d:/etc/nginx/conf.d:ro
+      - ./proxy/certs:/etc/nginx/certs:ro
+    networks:
+      backend:
+        ipv4_address: 172.30.0.10
+    restart: unless-stopped
+
+  guac-init:
+    image: guacamole/guacamole:1.6.0
+    container_name: guac-init
+    command:
+      - /bin/sh
+      - -c
+      - /opt/guacamole/bin/initdb.sh --postgresql > /initdb/initdb.sql
+    volumes:
+      - ./init:/initdb
+    networks:
+      - backend
+    restart: "no"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: guac-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-guacamole_db}
+      POSTGRES_USER: ${POSTGRES_USER:-guacamole_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      guac-init:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    restart: unless-stopped
+
+  postgres-backup:
+    image: postgres:16-alpine
+    container_name: guac-postgres-backup
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-guacamole_db}
+      POSTGRES_USER: ${POSTGRES_USER:-guacamole_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    command:
+      - /bin/sh
+      - /scripts/postgres-backup.sh
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: unless-stopped
+
+  guacd:
+    image: guacamole/guacd:1.6.0
+    container_name: guacd
+    volumes:
+      - ./recordings:/recordings
+    networks:
+      - backend
+    restart: unless-stopped
+
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    container_name: guacamole
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRESQL_ENABLED: "true"
+      POSTGRESQL_HOSTNAME: postgres
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DATABASE: ${POSTGRES_DB:-guacamole_db}
+      POSTGRESQL_USERNAME: ${POSTGRES_USER:-guacamole_user}
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRESQL_AUTO_CREATE_ACCOUNTS: "${POSTGRESQL_AUTO_CREATE_ACCOUNTS:-true}"
+      POSTGRESQL_TRACK_EXTERNAL_CONNECTION_HISTORY: "${POSTGRESQL_TRACK_EXTERNAL_CONNECTION_HISTORY:-true}"
+      RECORDING_ENABLED: "${RECORDING_ENABLED:-true}"
+      RECORDING_SEARCH_PATH: /recordings
+      SAML_ENABLED: "${SAML_ENABLED:-true}"
+      SAML_IDP_METADATA_URL: ${SAML_IDP_METADATA_URL:-}
+      SAML_ENTITY_ID: ${SAML_ENTITY_ID:-}
+      SAML_CALLBACK_URL: ${SAML_CALLBACK_URL:-}
+      SAML_GROUP_ATTRIBUTE: ${SAML_GROUP_ATTRIBUTE:-groups}
+      SAML_STRICT: "${SAML_STRICT:-true}"
+      SAML_COMPRESS_REQUEST: "${SAML_COMPRESS_REQUEST:-true}"
+      SAML_COMPRESS_RESPONSE: "${SAML_COMPRESS_RESPONSE:-true}"
+      SAML_DEBUG: "${SAML_DEBUG:-false}"
+      EXTENSION_PRIORITY: "${EXTENSION_PRIORITY:-saml, postgresql}"
+      WEBAPP_CONTEXT: ${WEBAPP_CONTEXT:-ROOT}
+      REMOTE_IP_VALVE_ENABLED: "true"
+      PROXY_ALLOWED_IPS_REGEX: ${PROXY_ALLOWED_IPS_REGEX:-172\\.30\\.0\\.10}
+      PROXY_IP_HEADER: X-Forwarded-For
+      PROXY_PROTOCOL_HEADER: X-Forwarded-Proto
+    volumes:
+      - ./recordings:/recordings:ro
+      - ./saml:/saml:ro
+      - ./extensions/enabled:/etc/guacamole/extensions:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      guacd:
+        condition: service_started
+    networks:
+      - backend
+    restart: unless-stopped
+
+networks:
+  backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  postgres_data:

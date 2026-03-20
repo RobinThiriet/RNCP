@@ -1,0 +1,9 @@
+.env
+init/initdb.sql
+recordings/
+backups/*.dump
+downloads/*/
+extensions/available/*.jar
+extensions/enabled/*.jar
+proxy/certs/fullchain.pem
+proxy/certs/privkey.pem
