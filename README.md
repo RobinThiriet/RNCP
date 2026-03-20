@@ -29,6 +29,7 @@ Les images officielles Guacamole et `guacd` sont alignées en `1.6.0`.
 - `backups/` : sauvegardes PostgreSQL
 - `saml/` : metadata SAML locale si nécessaire
 - `scripts/` : scripts d'exploitation
+- `windows/` : automatisation PowerShell pour un PoC AD / AD CS / AD FS
 
 ## Démarrage
 
