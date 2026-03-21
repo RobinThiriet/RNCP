@@ -27,20 +27,20 @@ Mettre en place un PoC Guacamole avec :
 - `AD CS` : autorité de certification interne
 - `AD FS` : fournisseur d'identité SAML
 
-## Paramètres PoC actuellement retenus
+## Parametres PoC actuellement retenus
 
 - Domaine AD : `poc.local`
 - NetBIOS : `POC`
-- Serveur Windows : `SRV-POC`
-- AD FS : `adfs-poc.lan`
-- Guacamole : `guacamole-poc.local`
+- Serveur Windows : `SRV-POC.poc.local`
+- AD FS : `adfs.poc.local`
+- Guacamole : `guacamole.poc.local`
 - Groupe AD : `GG_Guacamole_Users`
 
 ## SAML prévu
 
-- IdP metadata URL : `https://adfs-poc.lan/FederationMetadata/2007-06/FederationMetadata.xml`
-- Entity ID Guacamole : `https://guacamole-poc.local/guacamole/`
-- Callback URL Guacamole : `https://guacamole-poc.local/guacamole/`
+- IdP metadata URL : `https://adfs.poc.local/FederationMetadata/2007-06/FederationMetadata.xml`
+- Entity ID Guacamole : `https://guacamole.poc.local/guacamole/`
+- Callback URL Guacamole : `https://guacamole.poc.local/guacamole/`
 
 ## Ce qui est déjà dans le repo
 
@@ -48,11 +48,12 @@ Mettre en place un PoC Guacamole avec :
 - Documentation principale : [README.md](/root/RNCP-repo/README.md)
 - Script PowerShell PoC Windows : [windows/Deploy-PoC-Guacamole.ps1](/root/RNCP-repo/windows/Deploy-PoC-Guacamole.ps1)
 - Notes Windows : [windows/README.md](/root/RNCP-repo/windows/README.md)
+- Documentation detaillee Windows : [docs/windows-adfs-poc.md](/root/RNCP-repo/docs/windows-adfs-poc.md)
 
-## Points à aligner
+## Points a aligner
 
 - Vérifier si Guacamole doit être publié sur `/` ou sur `/guacamole/`
-- Vérifier la cohérence DNS entre `poc.local` et `adfs-poc.lan`
+- Vérifier l'export du certificat `guacamole.poc.local` pour `Nginx`
 - Définir les vrais certificats à utiliser côté reverse proxy
 - Tester le mapping des claims SAML côté Guacamole
 - Décider quand activer TOTP

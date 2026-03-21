@@ -15,8 +15,8 @@ $Config = @{
     NetbiosName             = "POC"
     ServerName              = "SRV-POC"
 
-    AdfsFqdn                = "adfs-poc.lan"
-    GuacFqdn                = "guacamole-poc.local"
+    AdfsFqdn                = "adfs.poc.local"
+    GuacFqdn                = "guacamole.poc.local"
 
     CACommonName            = "POC-ROOT-CA"
     AdfsDisplayName         = "POC ADFS"
@@ -37,8 +37,8 @@ $Config = @{
     DSRMPasswordPlain       = "P@ssw0rd123!"
 
     GuacRelyingPartyName    = "Guacamole"
-    GuacEntityId            = "https://guacamole-poc.local/guacamole/"
-    GuacCallbackUrl         = "https://guacamole-poc.local/guacamole/"
+    GuacEntityId            = "https://guacamole.poc.local/guacamole/"
+    GuacCallbackUrl         = "https://guacamole.poc.local/guacamole/"
 
     WorkDir                 = "C:\PoC"
     ExportDir               = "C:\PoC\Export"
@@ -274,7 +274,8 @@ if ($Phase -eq "2") {
 
     if ($ip) {
         try {
-            Ensure-DnsRecord -Name "guacamole-poc" -ZoneName "poc.local" -IPv4Address $ip
+            Ensure-DnsRecord -Name "adfs" -ZoneName "poc.local" -IPv4Address $ip
+            Ensure-DnsRecord -Name "guacamole" -ZoneName "poc.local" -IPv4Address $ip
         }
         catch {
         }
@@ -296,12 +297,12 @@ if ($Phase -eq "2") {
     $pfxPwd = To-SecureStringPlain $Config.GuacPfxPasswordPlain
     Export-PfxCertificate `
         -Cert $guacCert `
-        -FilePath "$($Config.ExportDir)\guacamole-poc.local.pfx" `
+        -FilePath "$($Config.ExportDir)\guacamole.poc.local.pfx" `
         -Password $pfxPwd | Out-Null
 
     Export-Certificate `
         -Cert $guacCert `
-        -FilePath "$($Config.ExportDir)\guacamole-poc.local.cer" | Out-Null
+        -FilePath "$($Config.ExportDir)\guacamole.poc.local.cer" | Out-Null
 
     Register-NextPhase -NextPhase "3"
 
@@ -441,8 +442,8 @@ SAML / ADFS :
 - Guacamole Callback URL  : $($Config.GuacCallbackUrl)
 
 Certificats exportés :
-- PFX Guacamole           : $($Config.ExportDir)\guacamole-poc.local.pfx
-- CER Guacamole           : $($Config.ExportDir)\guacamole-poc.local.cer
+- PFX Guacamole           : $($Config.ExportDir)\guacamole.poc.local.pfx
+- CER Guacamole           : $($Config.ExportDir)\guacamole.poc.local.cer
 - Mot de passe PFX        : $($Config.GuacPfxPasswordPlain)
 "@ | Set-Content "$($Config.WorkDir)\RESULTAT-POC.txt" -Encoding UTF8
 

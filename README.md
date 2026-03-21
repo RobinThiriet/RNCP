@@ -1,4 +1,4 @@
-# Guacamole 1.6.0 avec reverse proxy TLS
+# Guacamole 1.6.0 avec reverse proxy TLS, SSO SAML ADFS et recordings
 
 Cette stack déploie Apache Guacamole en architecture séparée :
 
@@ -9,6 +9,33 @@ Cette stack déploie Apache Guacamole en architecture séparée :
 - `postgres-backup` : sauvegardes régulières par `pg_dump`
 
 Les images officielles Guacamole et `guacd` sont alignées en `1.6.0`.
+
+## Sommaire
+
+- [Vue d'ensemble](#vue-densemble)
+- [Principe de sécurité](#principe-de-securite)
+- [Structure](#structure)
+- [Démarrage](#demarrage)
+- [Extensions officielles préparées](#extensions-officielles-preparees)
+- [SAML](#saml)
+- [PoC Windows / ADFS](#poc-windows--adfs)
+- [TOTP](#totp)
+- [Recording](#recording)
+- [Sauvegardes PostgreSQL](#sauvegardes-postgresql)
+- [Vérifications utiles](#verifications-utiles)
+- [Références officielles](#references-officielles)
+
+## Vue d'ensemble
+
+Le dépôt contient la partie Linux du PoC :
+
+- reverse proxy `Nginx`
+- `Apache Guacamole`
+- backend `PostgreSQL`
+- intégration `SAML` prête pour un fournisseur d'identité `ADFS`
+- recordings persistants avec lecture depuis l'historique Guacamole
+
+La documentation détaillée de la partie Windows Server 2022, AD DS, AD CS et ADFS est disponible dans [docs/windows-adfs-poc.md](/root/RNCP-repo/docs/windows-adfs-poc.md).
 
 ## Principe de sécurité
 
@@ -38,8 +65,8 @@ Les images officielles Guacamole et `guacd` sont alignées en `1.6.0`.
 2. Déposer vos certificats TLS :
 
 ```bash
-cp fullchain.pem proxy/certs/fullchain.pem
-cp privkey.pem proxy/certs/privkey.pem
+cp guacamole.poc.local.crt proxy/certs/guacamole.poc.local.crt
+cp guacamole.poc.local.key proxy/certs/guacamole.poc.local.key
 ```
 
 3. Télécharger les extensions officielles :
@@ -66,7 +93,7 @@ docker compose up -d
 
 Accès :
 
-- URL : `https://<host>/`
+- URL : `https://guacamole.poc.local/guacamole/`
 - compte local initial : `guacadmin` / `guacadmin`
 
 ## Extensions officielles préparées
@@ -91,8 +118,8 @@ Exemple avec metadata locale :
 
 ```env
 SAML_IDP_METADATA_URL=file:///saml/idp-metadata.xml
-SAML_ENTITY_ID=https://guacamole.example.com/
-SAML_CALLBACK_URL=https://guacamole.example.com/
+SAML_ENTITY_ID=https://guacamole.poc.local/guacamole/
+SAML_CALLBACK_URL=https://guacamole.poc.local/guacamole/
 ```
 
 Puis placez le fichier dans :
@@ -100,6 +127,49 @@ Puis placez le fichier dans :
 - `./saml/idp-metadata.xml`
 
 `EXTENSION_PRIORITY=saml, postgresql` favorise le SSO dès l'arrivée sur la page d'authentification.
+
+Exemple PoC avec `ADFS` :
+
+```env
+SAML_IDP_METADATA_URL=https://adfs.poc.local/FederationMetadata/2007-06/FederationMetadata.xml
+SAML_ENTITY_ID=https://guacamole.poc.local/guacamole/
+SAML_CALLBACK_URL=https://guacamole.poc.local/guacamole/
+SAML_GROUP_ATTRIBUTE=groups
+```
+
+Selon les claims réellement émis par `ADFS`, l'attribut de groupe pourra nécessiter un ajustement.
+Pour le PoC, `SAML_STRICT=false` et `SAML_DEBUG=true` facilitent l'intégration initiale. En cible, repassez `SAML_STRICT=true`.
+
+## PoC Windows / ADFS
+
+Le scénario PoC documenté repose sur les éléments suivants :
+
+- domaine Active Directory : `poc.local`
+- serveur Windows : `SRV-POC.poc.local`
+- service ADFS : `adfs.poc.local`
+- portail Guacamole : `guacamole.poc.local`
+- groupe d'autorisation : `GG_Guacamole_Users`
+
+La partie Windows couvre :
+
+- `AD DS`
+- `AD CS`
+- `AD FS`
+- comptes et groupes de test
+- logique d'autorisation par groupe pour l'accès Guacamole
+
+Documentation détaillée :
+
+- [docs/windows-adfs-poc.md](/root/RNCP-repo/docs/windows-adfs-poc.md)
+- [windows/README.md](/root/RNCP-repo/windows/README.md)
+- [windows/Deploy-PoC-Guacamole.ps1](/root/RNCP-repo/windows/Deploy-PoC-Guacamole.ps1)
+
+Configuration ADFS attendue côté relying party :
+
+- identifier / entity ID : `https://guacamole.poc.local/guacamole/`
+- reply URL / ACS : `https://guacamole.poc.local/guacamole/`
+- restriction d'accès sur le groupe `GG_Guacamole_Users`
+- émission d'un `NameID` basé sur l'identité AD exposée par `ADFS`
 
 ## TOTP
 
@@ -138,6 +208,21 @@ Pour qu'une connexion soit réellement enregistrée, configurez aussi la connexi
 - `create-recording-path` : `true`
 - `recording-name` : `recording`
 
+Paramètres recommandés pour le PoC :
+
+- `recording-path` : `/recordings/${HISTORY_UUID}`
+- `create-recording-path` : `true`
+- `recording-name` : `recording`
+- `recording-include-keys` : `true`
+- `recording-exclude-mouse` : `false`
+- `recording-exclude-output` : `false`
+
+Pour `SSH`, vous pouvez aussi ajouter :
+
+- `typescript-path` : `/recordings/${HISTORY_UUID}`
+- `create-typescript-path` : `true`
+- `typescript-name` : `typescript`
+
 ## Sauvegardes PostgreSQL
 
 Le service `postgres-backup` effectue un `pg_dump -Fc` régulier dans `./backups`.
@@ -153,6 +238,12 @@ Valider la stack :
 
 ```bash
 docker compose config
+```
+
+Préparer l'initialisation de base si nécessaire :
+
+```bash
+docker compose run --rm guac-init
 ```
 
 Suivre les logs :
